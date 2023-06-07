@@ -43,3 +43,9 @@
     -20   EWRITE         Failure to write to file
 
     -21   ECLOSE         Failure to close file
+
+    -22   EBITMAP        Bitmap is too large for superblock bounds
+
+    -23   EFILENAMELEN   Filename is too large
+
+    -24   ENOTFS         Given filename is not initialized as a file system

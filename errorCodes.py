@@ -19,6 +19,15 @@ def error_exit(err_type):
         case -21:
             print("ECLOSE: Failed to close file")
             exit(-21)
+        case -22:
+            print("EBITMAP: Bitmap is too large for superblock bounds")
+            exit(-22)
+        case -23:
+            print("EFILENAMELEN: Filename is too large")
+            exit(-23)
+        case -24:
+            print("ENOTFS: Given filename is not initialized as a file system")
+            exit(-24)
         case default:
             print("Unexpected Error")
             exit(-400)

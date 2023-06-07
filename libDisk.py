@@ -35,14 +35,14 @@ def openDisk(filename, nBytes):
 # block is straightforward: bNum=0 is the very first byte of the file. bNum=1 is BLOCKSIZE bytes into the disk, 
 # bNum=n is n*BLOCKSIZE bytes into the disk. On success, it returns 0. Errors must be returned if ‘disk’ is not 
 # available (i.e. hasn’t been opened) or for any other failures, as defined by your own error code system.
-def readBlock(disk, bNum, block):    
+def readBlock(disk, bNum):    
     if disk.closed == True:
         errorCodes.error_exit(-17);
 
     physBlockNum = bNum * BLOCKSIZE
 
     try:
-        disk.seek(physBlockNum)
+        disk.seek(physBlockNum, 0)
     except:
         errorCodes.error_exit(-18)
 
@@ -66,7 +66,7 @@ def writeBlock(disk, bNum, block):
     physBlockNum = bNum * BLOCKSIZE
     
     try:
-        disk.seek(physBlockNum)
+        disk.seek(physBlockNum, 0)
     except:
         errorCodes.error_exit(-18)
     
@@ -74,7 +74,6 @@ def writeBlock(disk, bNum, block):
         disk.write(block)
     except:
         errorCodes.error_exit(-20)
-    
 
     return 0
 
@@ -88,14 +87,21 @@ def closeDisk(disk):
     except:
         errorCodes.error_exit(-21)
 
-
+# Test
 if __name__=="__main__":
     test = openDisk("test", 256)
     testMessage = bytes("testing 12", encoding='utf8')
-    writeBlock(test, 13, testMessage)
+    writeBlock(test, 2, bytes(bytearray([1, 2, 3, 4, 5, 6, 14])))
+    writeBlock(test, 6, bytes(bytearray([1, 2, 3, 4, 5, 6, 8])))
     closeDisk(test)
     test = openDisk("test", 0)
-    success, data = readBlock(test, 12, None)
-    print(data)
+    #success, data = readBlock(test, 2)
+    success, data2 = readBlock(test, 2)
+    #success, data3 = readBlock(test, -2)
+
+    #print(data)
+    print(data2)
+    #print(data3)
+
     
 
