@@ -51,7 +51,7 @@ def readBlock(disk, bNum):
     except:
         errorCodes.error_exit(-19)
     
-    return 0, block
+    return 0, bytearray(block)
  
 
 # writeBlock() takes disk number ‘disk’ and logical block number ‘bNum’ and writes the content of the buffer 
@@ -70,10 +70,7 @@ def writeBlock(disk, bNum, block):
     except:
         errorCodes.error_exit(-18)
     
-    try:
-        disk.write(block)
-    except:
-        errorCodes.error_exit(-20)
+    disk.write(block)
 
     return 0
 

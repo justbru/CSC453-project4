@@ -19,6 +19,7 @@ class FileEntry():
         self.fp = fp
 
 openFiles = []
+fileSystems = dict()
 
 currDisk = None
 
@@ -41,7 +42,7 @@ def InodePairToBinaryArray(name, number):
 
 
 def writeInodePair(binaryInodePair):
-    pairs = libDisk.readBlock(currDisk, 1)
+    success, pairs = libDisk.readBlock(currDisk, 1)
     location = 0
     while (location < BLOCKSIZE):
         if pairs[location] == 0:
@@ -70,7 +71,7 @@ def getInodePairBlockNum(filename):
 def inodeToBinaryArray(size, timestamp):
     # size times array
     inode = bytearray(256)
-    inode[0] = (size / 256) + 1 # may need to change later, but one byte cannot store more than 256 int value and the size parameter passed in is represented as bytes
+    inode[0] = (int) (size / 256) + 1 # may need to change later, but one byte cannot store more than 256 int value and the size parameter passed in is represented as bytes
     timestamp = bytes(timestamp, encoding="utf8")
     
     for x in range(0, 19):
@@ -79,7 +80,7 @@ def inodeToBinaryArray(size, timestamp):
         else:
             inode[x] = timestamp[x]
 
-    return bytes(inode)
+    return inode
 
 
 def readInode(blockContent):
@@ -117,6 +118,9 @@ def tfs_mkfs(filename, nBytes):
     superBlock[0] = 0x5A
     libDisk.writeBlock(disk, 0, bytes(superBlock))
 
+    global fileSystems
+    fileSystems[filename] = disk
+
     return disk
 
     
@@ -128,14 +132,15 @@ def tfs_mkfs(filename, nBytes):
 # file system. Must return a specified success/error code. 
 def tfs_mount(filename):
     global currDisk
-    currDisk = libDisk.openDisk(filename, 0)
-    status, data = libDisk.readBlock(currDisk, 0, None)
+    global fileSystems
+    currDisk = fileSystems[filename]
+    status, data = libDisk.readBlock(currDisk, 0)
 
     # check if filename is initialized as an FS
     if data[0] != 0x5A:
         errorCodes.error_exit(-24);
     
-    data[1] = 0x01
+    data[1] = 1
     status = libDisk.writeBlock(currDisk, 0, data)
 
     return status
@@ -177,7 +182,7 @@ def tfs_close(fd):
 def tfs_write(fd, buffer, size):
     global currDisk
     global openFiles
-    superBlock = libDisk.readBlock(currDisk, 0)
+    success, superBlock = libDisk.readBlock(currDisk, 0)
     inodeBlock = 0
     freeBlock = 0
     
@@ -252,13 +257,13 @@ def tfs_readByte(fd):
 
     filename = openFiles[fd].name
     inodeLoc = getInodePairBlockNum(filename)
-    inode = libDisk.readBlock(currDisk, inodeLoc)
+    success, inode = libDisk.readBlock(currDisk, inodeLoc)
 
     if (openFiles[fd].fp > inode[0] * 256):
         return -1, 0 # change later with a new custom error code
 
-    inodeBlockOffset = openFiles[fd].fp / 256 # get the block offset within the inode direct index array
-    blockData = libDisk.readBlock(currDisk, inode[20 + inodeBlockOffset]) # retrieve the block that contains the desired byte
+    inodeBlockOffset = (int) (openFiles[fd].fp / 256) # get the block offset within the inode direct index array
+    success, blockData = libDisk.readBlock(currDisk, inode[20 + inodeBlockOffset]) # retrieve the block that contains the desired byte
     desiredByte = blockData[openFiles[fd].fp % 256] # retrieve the desired byte
     openFiles[fd].fp += 1 # increment fp of file
 
