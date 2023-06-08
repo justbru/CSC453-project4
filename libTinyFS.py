@@ -134,14 +134,14 @@ def tfs_mount(filename):
     global currDisk
     global fileSystems
     currDisk = fileSystems[filename]
-    status, data = libDisk.readBlock(currDisk, 0)
+    status, superblock = libDisk.readBlock(currDisk, 0)
 
     # check if filename is initialized as an FS
-    if data[0] != 0x5A:
+    if superblock[0] != 0x5A:
         errorCodes.error_exit(-24);
     
-    data[1] = 1
-    status = libDisk.writeBlock(currDisk, 0, data)
+    superblock[1] = 1
+    status = libDisk.writeBlock(currDisk, 0, superblock)
 
     return status
 
