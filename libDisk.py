@@ -70,8 +70,10 @@ def writeBlock(disk, bNum, block):
     except:
         errorCodes.error_exit(-18)
     
-    disk.write(block)
-
+    try:
+        disk.write(block)
+    except:
+        errorCodes.error_exit(-19)
     return 0
 
 
@@ -89,11 +91,11 @@ if __name__=="__main__":
     test = openDisk("test", 256)
     testMessage = bytes("testing 12", encoding='utf8')
     writeBlock(test, 2, bytes(bytearray([1, 2, 3, 4, 5, 6, 14])))
-    writeBlock(test, 6, bytes(bytearray([1, 2, 3, 4, 5, 6, 8])))
+    writeBlock(test, 12, bytes(bytearray([1, 2, 3, 4, 5, 6, 8])))
     closeDisk(test)
-    test = openDisk("test", 0)
+    test = openDisk("test", 256)
     #success, data = readBlock(test, 2)
-    success, data2 = readBlock(test, 2)
+    success, data2 = readBlock(test, 12)
     #success, data3 = readBlock(test, -2)
 
     #print(data)

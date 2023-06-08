@@ -44,12 +44,14 @@ def InodePairToBinaryArray(name, number):
 def writeInodePair(binaryInodePair):
     success, pairs = libDisk.readBlock(currDisk, 1)
     location = 0
+    # print (''.join('{:02x}'.format(x) for x in pairs))
     while (location < BLOCKSIZE):
-        if pairs[location] == 0:
+        #print(pairs[location])
+        if location < len(pairs) or pairs[location] == 0:
             break
         location += 9
 
-    for x in range(0, 8):
+    for x in range(0, 9):
         pairs[x + location] = binaryInodePair[x]
     
     libDisk.writeBlock(currDisk, 1, pairs)
@@ -108,11 +110,9 @@ def tfs_mkfs(filename, nBytes):
     else:
         disk = libDisk.openDisk(filename, nBytes)
 
-    for x in range(nBytes):
-        libDisk.writeBlock(disk, x, bytes("", encoding='utf8'))
-
-    numBlocks = nBytes / BLOCKSIZE
-
+    for i in range((int)(nBytes/256)):
+        libDisk.writeBlock(disk, i, bytearray(256))
+    
     # Superblock setup
     superBlock = bytearray(256)
     superBlock[0] = 0x5A
@@ -135,12 +135,12 @@ def tfs_mount(filename):
     global fileSystems
     currDisk = fileSystems[filename]
     status, superblock = libDisk.readBlock(currDisk, 0)
-
+    #print (''.join('{:02x}'.format(x) for x in superblock))
     # check if filename is initialized as an FS
     if superblock[0] != 0x5A:
         errorCodes.error_exit(-24);
     
-    superblock[1] = 1
+    superblock[1] = 0x01
     status = libDisk.writeBlock(currDisk, 0, superblock)
 
     return status
@@ -192,7 +192,7 @@ def tfs_write(fd, buffer, size):
             inodeBlock = x
             superBlock[x] = 1
             break
-    
+
     # add <openFiles[fd].filename, next free block> to the root inode on disk (index 1)
     writeInodePair(InodePairToBinaryArray(openFiles[fd].name, inodeBlock))
     
@@ -203,14 +203,16 @@ def tfs_write(fd, buffer, size):
     # iteratively write data blocks from buffer while storing disk block indexes in inode array
     for x in range(0, (int)(size / 256) + 1):
         # -> check the free bytemap for where to put next new piece of data
-        for x in range(2, 256):
-            if (superBlock[x] == 0):
-                freeBlock = x # set next free block
+        for i in range(2, 256):
+            if (superBlock[i] == 0):
+                freeBlock = i # set next free block
                 newInode[arrIndex] = freeBlock # assign current array index to the next free block
                 arrIndex += 1 # increment index in inode direct indexing array
-                superBlock[x] = 1 # update blockMap
+                superBlock[i] = 1 # update blockMap
                 break
         if (x == (int)(size / 256)):
+            print(x)
+            print(buffer[256*x:])
             libDisk.writeBlock(currDisk, freeBlock, buffer[256*x:]) # write only remaining bytes, avoids error
         else:
             libDisk.writeBlock(currDisk, freeBlock, buffer[256*x: 256*(x+1)]) # write all 256 bytes
@@ -259,7 +261,7 @@ def tfs_readByte(fd):
     inodeLoc = getInodePairBlockNum(filename)
     success, inode = libDisk.readBlock(currDisk, inodeLoc)
 
-    if (openFiles[fd].fp > inode[0] * 256):
+    if (openFiles[fd].fp > inode[0] * 256): # file pointer at end
         return -1, 0 # change later with a new custom error code
 
     inodeBlockOffset = (int) (openFiles[fd].fp / 256) # get the block offset within the inode direct index array
@@ -268,6 +270,7 @@ def tfs_readByte(fd):
     openFiles[fd].fp += 1 # increment fp of file
 
     return 0, desiredByte # return int
+
 
 # change the file pointer location to offset (absolute). Returns success/error codes.
 def tfs_seek(fd, offset):
