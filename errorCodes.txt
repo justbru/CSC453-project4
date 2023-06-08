@@ -49,3 +49,7 @@
     -23   EFILENAMELEN   Filename is too large
 
     -24   ENOTFS         Given filename is not initialized as a file system
+
+    -25   ENOMOUNTEDFS   No currently mounted file system
+
+    -26   EFILEPOINTER   File pointer is at end of file

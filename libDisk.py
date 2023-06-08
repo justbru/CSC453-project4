@@ -50,6 +50,7 @@ def readBlock(disk, bNum):
         block = disk.read(BLOCKSIZE)
     except:
         errorCodes.error_exit(-19)
+        return -19, None
     
     return 0, bytearray(block)
  
@@ -73,7 +74,9 @@ def writeBlock(disk, bNum, block):
     try:
         disk.write(block)
     except:
-        errorCodes.error_exit(-19)
+        errorCodes.error_exit(-20)
+        return -20, None
+    
     return 0
 
 

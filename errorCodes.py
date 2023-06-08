@@ -12,13 +12,10 @@ def error_exit(err_type):
             exit(-18)
         case -19:
             print("EREAD: Failed to read file")
-            exit(-19)
         case -20:
             print("EWRITE: Failed to write to file")
-            exit(-20)
         case -21:
             print("ECLOSE: Failed to close file")
-            exit(-21)
         case -22:
             print("EBITMAP: Bitmap is too large for superblock bounds")
             exit(-22)
@@ -28,6 +25,13 @@ def error_exit(err_type):
         case -24:
             print("ENOTFS: Given filename is not initialized as a file system")
             exit(-24)
+        case -25:
+            print("ENOMOUNTEDFS: No currently mounted file system")
+            exit(-25)
+        case -26:
+            print("EFILEPOINTER: File pointer is at end of file. Cannot read further.")
+        case -27:
+            print("EFILENOTOPEN: File is not open. Failed to write")
         case default:
             print("Unexpected Error")
             exit(-400)

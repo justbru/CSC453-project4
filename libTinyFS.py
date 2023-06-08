@@ -1,35 +1,27 @@
 import libDisk, sys, errorCodes, datetime
 
-
-# The default size of the disk and file system block
 BLOCKSIZE = 256
-
-# Your program should use a 10240 byte disk size giving you 40 blocks total. 
-# This is the default size. You must be able to support different possible values, or report 
-# an error if it exceeds the limits of your implementation.
 DEFAULT_DISK_SIZE = 10240
-
-# use this name for a default disk file name 
-#define DEFAULT_DISK_NAME “tinyFSDisk” 	
 DEFAULT_DISK_NAME = "tinyFSDisk"
+
 
 class FileEntry():
     def __init__(self, name, fp):
         self.name = name
         self.fp = fp
 
+
 openFiles = []
 fileSystems = dict()
-
 currDisk = None
+
 
 def InodePairToBinaryArray(name, number):
     inodePairByteArray = bytearray(9)
     if (len(name) > 8):
-        exit(1) # Add new error message
+        errorCodes.error_exit(-23);
 
     name = bytes(name, encoding="utf8")
-    
     for x in range(0, 8):
         if x >= len(name):
             inodePairByteArray[x] = 0x00
@@ -37,17 +29,15 @@ def InodePairToBinaryArray(name, number):
             inodePairByteArray[x] = name[x]
 
     inodePairByteArray[8] = number
-
     return bytes(inodePairByteArray)
 
 
 def writeInodePair(binaryInodePair):
     success, pairs = libDisk.readBlock(currDisk, 1)
     location = 0
-    # print (''.join('{:02x}'.format(x) for x in pairs))
+
     while (location < BLOCKSIZE):
-        #print(pairs[location])
-        if location < len(pairs) or pairs[location] == 0:
+        if pairs[location] == 0:
             break
         location += 9
 
@@ -55,7 +45,6 @@ def writeInodePair(binaryInodePair):
         pairs[x + location] = binaryInodePair[x]
     
     libDisk.writeBlock(currDisk, 1, pairs)
-
     return 0
  
     
@@ -67,38 +56,77 @@ def getInodePairBlockNum(filename):
             return pairs[location + 8]
         else:
             location += 9
-    return 0
+    return -1
 
 
 def inodeToBinaryArray(size, timestamp):
-    # size times array
     inode = bytearray(256)
     inode[0] = (int) (size / 256) + 1 # may need to change later, but one byte cannot store more than 256 int value and the size parameter passed in is represented as bytes
     timestamp = bytes(timestamp, encoding="utf8")
+
+    return bytearray(inode)
+
+
+def updateCreationTimestamp(inodeContent):
+    timestamp = bytes(datetime.datetime.now().strftime("%m/%d/%Y %H:%M:%S"), encoding="utf8")
     
-    for x in range(0, 19):
-        if x >= len(timestamp):
-            inode[x] = 0x00
+    for x in range(1, 20):
+        if x > len(timestamp) + 1:
+            inodeContent[x] = 0x00
         else:
-            inode[x] = timestamp[x]
-
-    return inode
-
-
-def readInode(blockContent):
-    size = blockContent[0]
-    timestamp = blockContent[1:20].decode()
-    array = blockContent[20:255]
-    return size, timestamp, array
+            inodeContent[x] = timestamp[(x - 1) % 19]
+    return inodeContent
 
 
-def getInodeArrayEntry(inodeBlockContent, index):
-    size = inodeBlockContent[0]
-    array = inodeBlockContent[20:255]
-
-    # go to array[index], make sure index is not greater than size. return value
+def updateModifiedTimestamp(inodeContent):
+    timestamp = bytes(datetime.datetime.now().strftime("%m/%d/%Y %H:%M:%S"), encoding="utf8")
     
+    for x in range(20, 39):
+        if x > len(timestamp) + 20:
+            inodeContent[x] = 0x00
+        else:
+            inodeContent[x] = timestamp[(x - 1) % 19]
+    return inodeContent
+
+
+def updateAccessTimestamp(inodeContent):
+    timestamp = bytes(datetime.datetime.now().strftime("%m/%d/%Y %H:%M:%S"), encoding="utf8")
     
+    for x in range(39, 58):
+        if x > len(timestamp) + 39:
+            inodeContent[x] = 0x00
+        else:
+            inodeContent[x] = timestamp[(x - 1) % 19]
+    return inodeContent
+
+    
+# returns the file’s creation time or all info (up to you if you want to make multiple functions) */
+def tfs_stat(fd):
+    if currDisk is None:
+        errorCodes.error_exit(-25)
+
+    filename = openFiles[fd].name
+    inodeLoc = getInodePairBlockNum(filename)
+    success, inode = libDisk.readBlock(currDisk, inodeLoc)
+
+    print("Creation time: ", end='')
+    for x in range (1, 20):
+        print(chr(inode[x]), end='')
+    print()
+
+    print("Modificaiton time: ", end='')
+    for x in range (20, 39):
+        print(chr(inode[x]), end='')
+    print()
+
+    print("Access time: ", end='')
+    for x in range (39, 58):
+        print(chr(inode[x]), end='')
+    print()
+
+    return 0;
+
+
 # Makes an empty TinyFS file system of size nBytes on the file specified by ‘filename’. 
 # This function should use the emulated disk library to open the specified file, and
 #  upon success, format the file to be mountable. This includes initializing all data 
@@ -135,7 +163,7 @@ def tfs_mount(filename):
     global fileSystems
     currDisk = fileSystems[filename]
     status, superblock = libDisk.readBlock(currDisk, 0)
-    #print (''.join('{:02x}'.format(x) for x in superblock))
+
     # check if filename is initialized as an FS
     if superblock[0] != 0x5A:
         errorCodes.error_exit(-24);
@@ -145,10 +173,9 @@ def tfs_mount(filename):
 
     return status
 
-
 def tfs_unmount():
     global currDisk
-    status, data = libDisk.readBlock(currDisk, 0, None)
+    status, data = libDisk.readBlock(currDisk, 0)
     data[1] = 0x00
     status = libDisk.writeBlock(currDisk, 0, data)
 
@@ -162,9 +189,13 @@ def tfs_unmount():
 # internal file pointer, etc.), and returns a file descriptor (integer) that can be used 
 # to reference this file while the filesystem is mounted. 
 def tfs_open(name):
+    if (len(name) > 8):
+        errorCodes.error_exit(-23)
+        return -23
+    
     global openFiles
     fd = len(openFiles) # new file descriptor is the index of the appended file
-    openFile = FileEntry(name, fd) # create new fileEntry
+    openFile = FileEntry(name, 0) # create new fileEntry
     openFiles.append(openFile) # append to the list of open files
     return fd; # returns a fileDescriptor
 
@@ -185,22 +216,51 @@ def tfs_write(fd, buffer, size):
     success, superBlock = libDisk.readBlock(currDisk, 0)
     inodeBlock = 0
     freeBlock = 0
-    
-    # Find next free block in blockMap in superblock
-    for x in range(2, 256):
-        if (superBlock[x] == 0):
-            inodeBlock = x
-            superBlock[x] = 1
-            break
+    newInode = None
 
-    # add <openFiles[fd].filename, next free block> to the root inode on disk (index 1)
-    writeInodePair(InodePairToBinaryArray(openFiles[fd].name, inodeBlock))
+    # file is not open
+    if openFiles[fd] is None:
+        errorCodes.error_exit(-27)
+        
+    # file does not exist
+    if getInodePairBlockNum(openFiles[fd].name) == -1:
+       
+        # Find next free block in blockMap in superblock
+        for x in range(2, 256):
+            if (superBlock[x] == 0):
+                inodeBlock = x
+                superBlock[x] = 1
+                break
+
+        # add <openFiles[fd].filename, next free block> to the root inode on disk (index 1)
+        writeInodePair(InodePairToBinaryArray(openFiles[fd].name, inodeBlock))
+        
+        # make a new inode at the next free block ^ with size, timestamp, and array with size 'size'
+        newInode = inodeToBinaryArray(size, datetime.datetime.now().strftime("%m/%d/%Y %H:%M:%S"))
+                
+        # update modification time
+        newInode = updateCreationTimestamp(newInode)
+        newInode = updateModifiedTimestamp(newInode)
+        newInode = updateAccessTimestamp(newInode)
     
-    # make a new inode at the next free block ^ with size, timestamp, and array with size 'size'
-    newInode = inodeToBinaryArray(size, datetime.datetime.now().strftime("%m/%d/%Y %H:%M:%S"))
+    # File does already exist
+    else:
+        inodeBlock = getInodePairBlockNum(openFiles[fd].name)
+        success, currInode = libDisk.readBlock(currDisk, inodeBlock)
+       
+        for i in range(59, 59 + currInode[0]):
+            superBlock[currInode[i]] = 0
+            
+        newInode = inodeToBinaryArray(size, datetime.datetime.now().strftime("%m/%d/%Y %H:%M:%S"))
     
-    arrIndex = 20
-    # iteratively write data blocks from buffer while storing disk block indexes in inode array
+        newInode[1:20] = currInode[1:20]
+        newInode = updateModifiedTimestamp(newInode)
+        newInode = updateAccessTimestamp(newInode)
+
+        openFiles[fd].fp = 0        
+
+    arrIndex = 59
+        # iteratively write data blocks from buffer while storing disk block indexes in inode array
     for x in range(0, (int)(size / 256) + 1):
         # -> check the free bytemap for where to put next new piece of data
         for i in range(2, 256):
@@ -211,17 +271,15 @@ def tfs_write(fd, buffer, size):
                 superBlock[i] = 1 # update blockMap
                 break
         if (x == (int)(size / 256)):
-            print(x)
-            print(buffer[256*x:])
             libDisk.writeBlock(currDisk, freeBlock, buffer[256*x:]) # write only remaining bytes, avoids error
         else:
             libDisk.writeBlock(currDisk, freeBlock, buffer[256*x: 256*(x+1)]) # write all 256 bytes
-            
+
     libDisk.writeBlock(currDisk, inodeBlock, newInode)
+   # libDisk.writeBlock(currDisk, inodeBlock, newInode)
     libDisk.writeBlock(currDisk, 0, superBlock)
 
     return 0 # return int
-
 
 # deletes a file and marks its blocks as free on disk.
 def tfs_delete(fd):
@@ -257,17 +315,25 @@ def tfs_readByte(fd):
     global openFiles
     global currDisk
 
+    if currDisk is None:
+        errorCodes.error_exit(-25)
+
     filename = openFiles[fd].name
     inodeLoc = getInodePairBlockNum(filename)
     success, inode = libDisk.readBlock(currDisk, inodeLoc)
 
     if (openFiles[fd].fp > inode[0] * 256): # file pointer at end
-        return -1, 0 # change later with a new custom error code
+        errorCodes.error_exit(-26)
+        return -26, None
 
     inodeBlockOffset = (int) (openFiles[fd].fp / 256) # get the block offset within the inode direct index array
-    success, blockData = libDisk.readBlock(currDisk, inode[20 + inodeBlockOffset]) # retrieve the block that contains the desired byte
+    success, blockData = libDisk.readBlock(currDisk, inode[59 + inodeBlockOffset]) # retrieve the block that contains the desired byte
     desiredByte = blockData[openFiles[fd].fp % 256] # retrieve the desired byte
     openFiles[fd].fp += 1 # increment fp of file
+
+    # update access time
+    newInode = updateAccessTimestamp(inode) # add function call riley is making
+    libDisk.writeBlock(currDisk, inodeLoc, newInode)
 
     return 0, desiredByte # return int
 
@@ -277,3 +343,35 @@ def tfs_seek(fd, offset):
     global openFiles
     openFiles[fd].fp += offset # increment fp by offset
     return 0 # return int
+
+
+# Renames a file.  New name should be passed in. 
+def tfs_rename(oldName, newName):
+    success, pairs = libDisk.readBlock(currDisk, 1)
+    location = 0
+    while (location < BLOCKSIZE):
+        if pairs[location:location+8] == InodePairToBinaryArray(oldName, 0)[0:8]:
+            newName = bytes(newName, encoding="utf8")
+            for x in range(location, location + 8):
+                if x >= len(newName):
+                    pairs[x] = 0x00
+                else:
+                    pairs[x] = newName[x]
+            libDisk.writeBlock(currDisk, 1, pairs)
+            return 0  
+        else:
+            location += 9
+    return -1
+
+
+# lists all the files and directories on the disk
+def tfs_readdir():
+    success, pairs = libDisk.readBlock(currDisk, 1)
+    location = 0
+    while (location < BLOCKSIZE):
+        if pairs[location] != 0:
+            for x in range (location, location + 8):
+                print(chr(pairs[x]), end='')
+            print()
+        location += 9
+    return -1
