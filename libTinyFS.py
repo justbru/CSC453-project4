@@ -10,11 +10,9 @@ class FileEntry():
         self.name = name
         self.fp = fp
 
-
 openFiles = []
 fileSystems = dict()
 currDisk = None
-
 
 def InodePairToBinaryArray(name, number):
     inodePairByteArray = bytearray(9)
@@ -46,9 +44,27 @@ def writeInodePair(binaryInodePair):
     
     libDisk.writeBlock(currDisk, 1, pairs)
     return 0
+
+def deleteInodePair(filename):
+    global currDisk
+    success, pairs = libDisk.readBlock(currDisk, 1)
+    location = 0
+    while (location < BLOCKSIZE):
+        if pairs[location:location+8] == InodePairToBinaryArray(filename, 0)[0:8]:
+            break
+        else:
+            location += 9
+
+    for x in range(location, location + 9):
+        pairs[x] = 0x00
+
+    return pairs
+        
+
  
     
 def getInodePairBlockNum(filename):
+    global currDisk
     success, pairs = libDisk.readBlock(currDisk, 1)
     location = 0
     while (location < BLOCKSIZE):
@@ -288,9 +304,9 @@ def tfs_delete(fd):
     fileName = openFiles[fd].name # get filename of file to be deleted by looking up in dynamic table
     openFiles[fd] = None # set to None, not pop; this preserves the file descriptor of other open files
 
-    superBlock = libDisk.readBlock(currDisk, 0) # read superblock
+    success, superBlock = libDisk.readBlock(currDisk, 0) # read superblock
     inodeLoc = getInodePairBlockNum(fileName) # get inode location of file to be deleted
-    inode = libDisk.readBlock(currDisk, inodeLoc) # get inode data of file to be deleted
+    success, inode = libDisk.readBlock(currDisk, inodeLoc) # get inode data of file to be deleted
 
     superBlock[inodeLoc] = 0 # set inode location in free bock map to 0
     
@@ -302,6 +318,8 @@ def tfs_delete(fd):
             superBlock[inode[x]] = 0 # set the block location in the free block map to 0
             break
 
+    currNode = deleteInodePair(fileName)
+    libDisk.writeBlock(currDisk, 1, currNode)
     libDisk.writeBlock(currDisk, 0, superBlock) # update superblock with new update free block map
 
     return 0 # return int

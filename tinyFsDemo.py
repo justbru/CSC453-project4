@@ -62,9 +62,6 @@ def main():
     print("foo.txt stats:")
     libTinyFS.tfs_stat(file1)
 
-    print("closing bar.txt")
-    libTinyFS.tfs_close(file2)
-
     print("printing all files:")
     libTinyFS.tfs_readdir()
 
@@ -79,6 +76,12 @@ def main():
         success, data = libTinyFS.tfs_readByte(file1)
         print(chr(data), end="")
     print()
+
+    print("printing all files:")
+    libTinyFS.tfs_readdir()
+
+    print("deleting bar.txt")
+    libTinyFS.tfs_delete(file2)
 
     print("printing all files:")
     libTinyFS.tfs_readdir()
